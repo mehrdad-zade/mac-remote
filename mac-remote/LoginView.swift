@@ -6,6 +6,7 @@ struct LoginView: View {
     @State private var selectedServer: DiscoveredServer? = nil
     @State private var pin = ""
     @State private var appeared = false
+    @State private var showPIN = false
 
     var body: some View {
         ZStack {
@@ -247,17 +248,37 @@ struct LoginView: View {
                     .textCase(.uppercase)
 
                 HStack(spacing: 12) {
-                    TextField("Enter PIN from Mac app", text: $pin)
-                        .keyboardType(.numberPad)
-                        .font(.system(size: 22, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white)
-                        .tint(.blue)
-                        .onChange(of: pin) { _, newValue in
-                            let filtered = newValue.filter { $0.isNumber }
-                            if filtered != newValue || newValue.count > 4 {
-                                pin = String(filtered.prefix(4))
+                    if showPIN {
+                        TextField("Enter PIN from Mac app", text: $pin)
+                            .keyboardType(.numberPad)
+                            .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .tint(.blue)
+                            .onChange(of: pin) { _, newValue in
+                                let filtered = newValue.filter { $0.isNumber }
+                                if filtered != newValue || newValue.count > 4 {
+                                    pin = String(filtered.prefix(4))
+                                }
                             }
-                        }
+                    } else {
+                        SecureField("Enter PIN from Mac app", text: $pin)
+                            .keyboardType(.numberPad)
+                            .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .tint(.blue)
+                            .onChange(of: pin) { _, newValue in
+                                let filtered = newValue.filter { $0.isNumber }
+                                if filtered != newValue || newValue.count > 4 {
+                                    pin = String(filtered.prefix(4))
+                                }
+                            }
+                    }
+
+                    Button { showPIN.toggle() } label: {
+                        Image(systemName: showPIN ? "eye.slash" : "eye")
+                            .foregroundStyle(.white.opacity(0.4))
+                    }
+                    .buttonStyle(.plain)
 
                     if !pin.isEmpty {
                         Button { pin = "" } label: {

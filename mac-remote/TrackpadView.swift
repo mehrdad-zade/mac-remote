@@ -9,6 +9,10 @@ struct TrackpadView: View {
     @State private var ripplePosition: CGPoint = .zero
     @State private var showRipple = false
     @State private var rippleOpacity = 0.0
+    @State private var activeModifiers: Set<Int> = []
+    @State private var draftText = ""
+    @State private var textFieldId = UUID()
+    @FocusState private var keyboardFocused: Bool
 
     var body: some View {
         ZStack {
@@ -16,10 +20,15 @@ struct TrackpadView: View {
             ambientOrbs
 
             VStack(spacing: 0) {
-                statusBar
+                controlBar
                     .padding(.horizontal, 20)
                     .padding(.top, 12)
                     .padding(.bottom, 8)
+
+                if showKeyboard {
+                    specialKeysRow
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
 
                 // Trackpad surface
                 ZStack {
@@ -43,35 +52,30 @@ struct TrackpadView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "hand.draw")
                             .font(.system(size: 32, weight: .thin))
-                            .foregroundStyle(.white.opacity(0.12))
+                            .foregroundStyle(.white.opacity(0.35))
                         Text("Drag to move  •  Tap to click  •  Hold to right-click")
-                            .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.1))
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.4))
                             .multilineTextAlignment(.center)
                     }
                     .allowsHitTesting(false)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                bottomToolbar
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
             }
         }
-        .overlay(alignment: .bottomTrailing) {
-            KeyboardCapture(
-                isActive: showKeyboard,
-                onCharacters: { connectionManager.sendKeypress($0) },
-                onSpecialKey: { connectionManager.sendKeyCode($0) }
-            )
-            .frame(width: 1, height: 1)
-            .opacity(0)
+        .ignoresSafeArea(.keyboard)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if showKeyboard {
+                textInputBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
-        .onReceive(
-            NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)
-        ) { _ in
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                showKeyboard = false
+        .onChange(of: keyboardFocused) { _, focused in
+            if !focused {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    showKeyboard = false
+                    activeModifiers.removeAll()
+                }
             }
         }
         .confirmationDialog("Put Mac to Sleep?", isPresented: $showSleepConfirm, titleVisibility: .visible) {
@@ -84,71 +88,9 @@ struct TrackpadView: View {
         }
     }
 
-    // MARK: - Status bar
+    // MARK: - Control bar (top)
 
-    private var statusBar: some View {
-        HStack(spacing: 12) {
-            // Connection chip
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.green)
-                    .frame(width: 7, height: 7)
-                    .shadow(color: .green, radius: 4)
-                Text(connectionManager.connectedServerName.isEmpty
-                     ? "Connected" : connectionManager.connectedServerName)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(.ultraThinMaterial)
-            .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5))
-
-            Spacer()
-
-            // Virtual desktop navigation arrows
-            desktopArrows
-        }
-    }
-
-    private var desktopArrows: some View {
-        HStack(spacing: 0) {
-            Button {
-                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
-                connectionManager.sendSwitchSpace(left: true)
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .frame(width: 38, height: 34)
-            }
-            .buttonStyle(.plain)
-
-            Rectangle()
-                .fill(Color.white.opacity(0.15))
-                .frame(width: 0.5, height: 18)
-
-            Button {
-                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
-                connectionManager.sendSwitchSpace(left: false)
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .frame(width: 38, height: 34)
-            }
-            .buttonStyle(.plain)
-        }
-        .background(.ultraThinMaterial)
-        .clipShape(Capsule())
-        .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5))
-    }
-
-    // MARK: - Bottom toolbar
-
-    private var bottomToolbar: some View {
+    private var controlBar: some View {
         HStack(spacing: 0) {
             // Keyboard toggle — haptic: medium
             toolbarButton(
@@ -157,8 +99,16 @@ struct TrackpadView: View {
                 color: showKeyboard ? .blue : .white
             ) {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                let opening = !showKeyboard
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                    showKeyboard.toggle()
+                    showKeyboard = opening
+                }
+                if opening {
+                    keyboardFocused = true
+                } else {
+                    keyboardFocused = false
+                    draftText = ""
+                    activeModifiers.removeAll()
                 }
             }
 
@@ -172,9 +122,18 @@ struct TrackpadView: View {
 
             toolbarDivider
 
-            // Disconnect
-            toolbarButton(icon: "xmark.circle", label: "Disconnect", color: .red.opacity(0.85)) {
-                connectionManager.disconnect()
+            // Switch space left
+            toolbarButton(icon: "chevron.left", label: "Desktop", color: .white) {
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+                connectionManager.sendSwitchSpace(left: true)
+            }
+
+            toolbarDivider
+
+            // Switch space right
+            toolbarButton(icon: "chevron.right", label: "Desktop", color: .white) {
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+                connectionManager.sendSwitchSpace(left: false)
             }
         }
         .padding(.horizontal, 8)
@@ -212,6 +171,102 @@ struct TrackpadView: View {
         }
         .buttonStyle(.plain)
     }
+
+    // MARK: - Special keys row (shown above system keyboard)
+
+    private var specialKeysRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(specialKeys, id: \.label) { key in
+                    SpecialKeyButton(
+                        key: key,
+                        isActive: activeModifiers.contains(key.keyCode),
+                        onTap: handleSpecialKey
+                    )
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+        .background(.ultraThinMaterial)
+    }
+
+    private func handleSpecialKey(_ key: SpecialKey) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        if key.isModifier {
+            if activeModifiers.contains(key.keyCode) {
+                activeModifiers.remove(key.keyCode)
+            } else {
+                activeModifiers.insert(key.keyCode)
+            }
+        } else {
+            connectionManager.sendKeyCode(key.keyCode, modifiers: Array(activeModifiers))
+            activeModifiers.removeAll()
+        }
+    }
+
+    // MARK: - Text input bar
+
+    private var textInputBar: some View {
+        HStack(spacing: 10) {
+            TextField("Type a message…", text: $draftText, axis: .vertical)
+                .focused($keyboardFocused)
+                .id(textFieldId)
+                .font(.body)
+                .foregroundStyle(.white)
+                .tint(.blue)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .lineLimit(1...5)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5))
+                .onSubmit { sendDraftText() }
+
+            Button(action: sendDraftText) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 34))
+                    .foregroundStyle(draftText.isEmpty ? Color.white.opacity(0.25) : Color.blue)
+            }
+            .buttonStyle(.plain)
+            .disabled(draftText.isEmpty)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 0.5)
+        }
+    }
+
+    private func sendDraftText() {
+        let text = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+        draftText = ""
+        textFieldId = UUID()
+        guard !text.isEmpty else { return }
+        connectionManager.sendKeypress(text)
+        // Re-focus on next run loop after the TextField reinitialises
+        Task { @MainActor in
+            keyboardFocused = true
+        }
+    }
+
+    private let specialKeys: [SpecialKey] = [
+        SpecialKey(label: "←",     icon: "arrow.left",  keyCode: 123),
+        SpecialKey(label: "→",     icon: "arrow.right", keyCode: 124),
+        SpecialKey(label: "↑",     icon: "arrow.up",    keyCode: 126),
+        SpecialKey(label: "↓",     icon: "arrow.down",  keyCode: 125),
+        SpecialKey(label: "Ctrl",  icon: nil, keyCode: 59, isModifier: true),
+        SpecialKey(label: "⌘ Cmd", icon: nil, keyCode: 55, isModifier: true),
+        SpecialKey(label: "⌥ Alt", icon: nil, keyCode: 58, isModifier: true),
+        SpecialKey(label: "Tab",   icon: nil, keyCode: 48),
+        SpecialKey(label: "Esc",   icon: nil, keyCode: 53),
+    ]
 
     // MARK: - Trackpad background
 
@@ -375,6 +430,49 @@ struct TrackpadSurface: UIViewRepresentable {
             shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
         ) -> Bool {
             false
+        }
+    }
+}
+
+// MARK: - Special key model + button (extracted to help type-checker)
+
+private struct SpecialKey {
+    let label: String
+    let icon: String?
+    let keyCode: Int
+    var isModifier: Bool = false
+}
+
+private struct SpecialKeyButton: View {
+    let key: SpecialKey
+    let isActive: Bool
+    let onTap: (SpecialKey) -> Void
+
+    var body: some View {
+        Button { onTap(key) } label: {
+            keyLabel
+                .foregroundStyle(isActive ? Color.black : Color.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(isActive ? AnyShapeStyle(Color.white) : AnyShapeStyle(.ultraThinMaterial))
+                .clipShape(Capsule())
+                .overlay(Capsule().strokeBorder(
+                    isActive ? Color.clear : Color.white.opacity(0.15),
+                    lineWidth: 0.5
+                ))
+                .animation(.easeInOut(duration: 0.15), value: isActive)
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var keyLabel: some View {
+        if let icon = key.icon {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .medium))
+        } else {
+            Text(key.label)
+                .font(.system(size: 13, weight: .medium))
         }
     }
 }

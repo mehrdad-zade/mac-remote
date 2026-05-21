@@ -278,12 +278,16 @@ final class ConnectionManager {
         sendMessage(["type": "scroll", "dx": Double(dx), "dy": Double(dy)])
     }
 
-    func sendKeypress(_ characters: String) {
-        sendMessage(["type": "keypress", "characters": characters])
+    func sendKeypress(_ characters: String, modifiers: [Int] = []) {
+        var msg: [String: Any] = ["type": "keypress", "characters": characters]
+        if !modifiers.isEmpty { msg["modifiers"] = modifiers }
+        sendMessage(msg)
     }
 
-    func sendKeyCode(_ code: Int) {
-        sendMessage(["type": "keyCode", "code": code])
+    func sendKeyCode(_ code: Int, modifiers: [Int] = []) {
+        var msg: [String: Any] = ["type": "keyCode", "code": code]
+        if !modifiers.isEmpty { msg["modifiers"] = modifiers }
+        sendMessage(msg)
     }
 
     func sendSleep() { sendMessage(["type": "sleep"]) }
