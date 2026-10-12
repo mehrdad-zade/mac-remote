@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct LoginView: View {
-    @Environment(ConnectionManager.self) private var connectionManager
+    @EnvironmentObject private var connectionManager: ConnectionManager
 
     @State private var selectedServer: DiscoveredServer? = nil
     @State private var pin = ""
@@ -32,7 +32,7 @@ struct LoginView: View {
             }
         }
         .onAppear {
-            pin = connectionManager.savedPIN
+            pin = connectionManager.lastUsedPIN
             connectionManager.startBrowsing()
             withAnimation(.easeOut(duration: 0.6)) { appeared = true }
         }
@@ -94,7 +94,7 @@ struct LoginView: View {
         return HStack(spacing: 14) {
             Button {
                 // Auto-fill PIN and select if found in discovered list
-                pin = server.pin
+                pin = connectionManager.pin(for: server.name)
                 selectedServer = connectionManager.discoveredServers.first { $0.name == server.name }
             } label: {
                 HStack(spacing: 14) {
@@ -193,7 +193,7 @@ struct LoginView: View {
                 selectedServer = server
                 // Auto-fill saved PIN if we know this server
                 if let saved = connectionManager.savedServers.first(where: { $0.name == server.name }) {
-                    pin = saved.pin
+                    pin = connectionManager.pin(for: saved.name)
                 }
             }
         } label: {
@@ -254,7 +254,7 @@ struct LoginView: View {
                             .font(.system(size: 22, weight: .semibold, design: .monospaced))
                             .foregroundStyle(.white)
                             .tint(.blue)
-                            .onChange(of: pin) { _, newValue in
+                            .onChange(of: pin) { newValue in
                                 let filtered = newValue.filter { $0.isNumber }
                                 if filtered != newValue || newValue.count > 4 {
                                     pin = String(filtered.prefix(4))
@@ -266,7 +266,7 @@ struct LoginView: View {
                             .font(.system(size: 22, weight: .semibold, design: .monospaced))
                             .foregroundStyle(.white)
                             .tint(.blue)
-                            .onChange(of: pin) { _, newValue in
+                            .onChange(of: pin) { newValue in
                                 let filtered = newValue.filter { $0.isNumber }
                                 if filtered != newValue || newValue.count > 4 {
                                     pin = String(filtered.prefix(4))

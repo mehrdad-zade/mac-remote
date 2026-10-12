@@ -6,13 +6,16 @@ An open-source iOS app that turns your iPhone into a wireless trackpad, keyboard
 
 ## Features
 
-- **Full-screen trackpad** — drag to move the cursor, tap to click, two-finger drag to scroll, long press to right-click
-- **Virtual desktop switching** — navigate between Mission Control Spaces with the ← → arrows
-- **Wireless keyboard** — type on your iPhone's keyboard and the text appears on your Mac
-- **Sleep button** — put your Mac to sleep from anywhere in the room
-- **Saved machines** — remembers your Macs and PINs so reconnecting is one tap
-- **Zero cloud** — everything stays on your local network; Bonjour auto-discovery, no IP addresses to type
-- **Modern glass UI** — dark glass design that looks great at a glance
+- **Full-screen trackpad**: drag to move the cursor, tap to click, tap twice to double-click, two-finger drag to scroll, two-finger tap or long press to right-click
+- **Stays connected**: sign in once; the app reconnects by itself after you lock and unlock your phone (Face ID) or switch apps, until you tap **Disconnect**
+- **Keyboard shortcuts**: Copy, Paste, Cut, Undo, Redo, Select All, Switch App (⌘Tab), Spotlight, Mission Control, Find, New Tab, Close, Quit
+- **Modifier keys**: ⌃ ⌥ ⇧ ⌘ combine with arrows, Return, Delete, Tab, Esc, Space, or any typed character (⌘C, ⌃A, ⇧→, …)
+- **Volume and media**: volume down / mute / up (hold to repeat), previous / play-pause / next
+- **Virtual desktop switching**: move between Mission Control Spaces
+- **Wireless keyboard**: type on your iPhone's keyboard and the text appears on your Mac
+- **Sleep button**: put your Mac to sleep from anywhere in the room
+- **Saved machines**: remembers your Macs; PINs are kept in the iOS Keychain
+- **Zero cloud**: everything stays on your local network; Bonjour auto-discovery, no IP addresses to type
 
 ---
 
@@ -20,80 +23,21 @@ An open-source iOS app that turns your iPhone into a wireless trackpad, keyboard
 
 | Component | Minimum version |
 |-----------|----------------|
-| iPhone / iPad | iOS 26+ |
-| Mac | macOS 14 (Sonoma) or later |
+| iPhone | iOS 15+ (iPhone 6s / 2015 and newer) |
+| Mac | macOS 12 Monterey or later, running [MacRemote Server](../mac-remote-server) |
 | Network | Both devices on the **same WiFi network** |
-| Xcode (for iOS build) | Xcode 26+ |
-| Swift (for Mac build) | Swift 5.9+ (ships with Xcode 26 or `xcode-select`) |
+| Xcode (to build) | Xcode 27+ |
 
 ---
 
 ## Mac Setup
 
-### 1. Clone the repository
+Install **MacRemote Server** on the Mac: open `MacRemote.dmg` and run **Install MacRemote.pkg**.
+The installer allows MacRemote through the firewall, sets it to start at login and opens the
+**MacRemote Setup** window, which walks you through the permissions macOS asks you to approve
+(Accessibility, Automation for desktop switching, Login Items) and choosing a PIN.
 
-```bash
-git clone https://github.com/yourname/mac-remote.git
-cd mac-remote
-```
-
-### 2. Build and install the Mac server
-
-Run this single command from the repo root — it builds, copies the binary to a stable location, and launches it:
-
-```bash
-cd MacServer && swift build -c release && mkdir -p ~/Applications && pkill -x MacServer; cp .build/release/MacServer ~/Applications/MacServer && ~/Applications/MacServer
-```
-
-> **Why `~/Applications` and not `/Applications`?** `~/Applications` is your personal Applications folder (visible in Finder under your home folder). Any app can write there without admin rights, and macOS treats it identically to `/Applications` for permissions purposes. The binary won't have a `.app` icon — it runs headless as a menu bar app. Every `swift build` replaces the binary in `.build/`, and macOS treats a changed binary as a new app — revoking its Accessibility permission. Copying to a fixed path means you grant permission once and it sticks. For normal day-to-day use, just run `~/Applications/MacServer` directly; only re-run this command when you update the source.
-
-### 3. Allow incoming connections through the Firewall
-
-If your Mac's firewall is on (most Macs have it enabled), you must add MacServer to the allowlist — otherwise the iOS app will discover the server via Bonjour but every connection attempt will be silently dropped.
-
-Run these two commands (you'll be prompted for your password):
-
-```bash
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add ~/Applications/MacServer
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp ~/Applications/MacServer
-```
-
-Or do it via the GUI: **System Settings → Network → Firewall → Options…** → **`+`** → select `~/Applications/MacServer` → set it to **Allow incoming connections**.
-
-> **After a rebuild:** Re-run the two `sudo` commands above (or remove and re-add the entry in the GUI). macOS treats the new binary as a different app and revokes the exception.
-
-### 4. Grant Accessibility permission
-
-MacServer needs Accessibility access to move the cursor and inject keyboard input. On first launch the server registers itself with macOS — follow these steps to grant permission:
-
-1. Open **System Settings → Privacy & Security → Accessibility**.
-
-2. Click the **`+`** button at the bottom of the list.
-
-3. In the file picker, press **`⌘ Shift G`**, paste this path (replace `YOUR_USERNAME` with your macOS username — run `whoami` in Terminal if unsure), then click **Open**:
-   ```
-   /Users/YOUR_USERNAME/Applications/MacServer
-   ```
-
-4. `MacServer` will appear in the list — make sure the toggle next to it is **on**.
-
-> **After a rebuild:** If you re-run the install command above, go back to **Privacy & Security → Accessibility**, toggle MacServer **off**, then back **on**. macOS detects the file changed and requires re-confirmation.
-
-### 4. Run the server
-
-```bash
-~/Applications/MacServer
-```
-
-A cursor icon (⌖) will appear in your menu bar. The server is now broadcasting itself on your local network via Bonjour.
-
-**To launch automatically at login:** Open **System Settings → General → Login Items & Extensions** → click `+` under "Open at Login" → select `~/Applications/MacServer`.
-
-### 6. Set your PIN
-
-Click the ⌖ icon in the menu bar → **Change PIN…** → enter any 4-digit number → **Save**.
-
-You will enter this same PIN in the iOS app to authenticate.
+See the [mac-remote-server README](../mac-remote-server/README.md) for details and for building the installer.
 
 ---
 
@@ -132,11 +76,14 @@ open mac-remote.xcodeproj
 
 ### Connecting
 
-1. Make sure the Mac server is running (⌖ in menu bar).
-2. Open **Mac Remote** on your iPhone — your Mac appears in the list within a few seconds.
+1. Make sure MacRemote is running on the Mac (cursor icon in the menu bar).
+2. Open **Mac Remote** on your iPhone; your Mac appears in the list within a few seconds.
 3. Tap your Mac, enter the 4-digit PIN, tap **Connect**.
 
-Previously connected Macs are saved at the top of the list — tap one to auto-fill the PIN and reconnect in one tap.
+You stay signed in. When you lock the phone, switch apps or the Wi-Fi drops, the trackpad stays
+on screen with a small **Reconnecting…** banner and the app reconnects by itself as soon as it can.
+Relaunching the app also reconnects automatically. If the PIN on the Mac changes, the app asks
+for the new one.
 
 ### Trackpad controls
 
@@ -144,18 +91,36 @@ Previously connected Macs are saved at the top of the list — tap one to auto-f
 |---------|--------|
 | 1-finger drag | Move cursor |
 | Tap | Left click |
+| Tap twice quickly | Double click (three times: triple click) |
+| 2-finger tap | Right click |
 | Long press (~0.4s) | Right click |
 | 2-finger drag | Scroll |
 
 ### Desktop navigation
 
-Tap **←** or **→** in the top-right corner to switch between Mission Control Spaces.
+Tap **‹ Desktop** or **Desktop ›** in the toolbar to switch between Mission Control Spaces.
 
-> You need at least 2 Spaces set up: **System Settings → Desktop & Dock → Mission Control → ☑ Automatically rearrange Spaces** (and create additional desktops in Mission Control).
+> You need at least 2 Spaces set up (create additional desktops in Mission Control).
+
+### Volume and media
+
+The bar under the toolbar controls the Mac's volume (hold − or + to keep changing it) and media
+playback. With an older Mac server these buttons are greyed out; update MacRemote on the Mac.
+
+### Shortcuts
+
+The scrolling row of buttons sends common shortcuts in one tap. **Switch App** works like
+⌘Tab: tap it repeatedly within a second to move through the app switcher; it selects the
+highlighted app when you stop.
 
 ### Keyboard
 
-Tap the **keyboard** icon in the bottom toolbar to bring up your iPhone's keyboard. The trackpad area stays active above it — you can still move the cursor while typing. Tap **Hide** or swipe the keyboard down to dismiss it.
+Tap the **keyboard** icon to bring up your iPhone's keyboard. Type text and tap send.
+
+Above the keyboard is a row of special keys. **Ctrl**, **⌥ Alt**, **⇧ Shift** and **⌘ Cmd** are
+sticky: tap one (or several), then tap a special key or type a character. For example
+**⌘ Cmd** then `c` sends ⌘C, **⇧ Shift** then **→** extends a selection. The text field turns
+blue while a modifier is armed.
 
 ### Sleep
 
@@ -163,14 +128,15 @@ Tap **moon** (🌙) in the toolbar → confirm → your Mac goes to sleep immedi
 
 ### Disconnect
 
-Tap **✕** in the toolbar to disconnect and return to the server list.
+Tap **Disconnect** (⏻) in the toolbar to sign out and return to the server list. The app won't
+reconnect until you sign in again.
 
 ---
 
 ## Architecture
 
 ```
-iPhone (iOS app)          ←→  Mac (MacServer)
+iPhone (iOS app)          ←→  Mac (MacRemote Server)
 ────────────────               ──────────────
 NWBrowser (Bonjour)   ←→     NWListener port 8080
 NWConnection (TCP)    →      ClientSession (per device)
@@ -180,21 +146,10 @@ JSON messages + \n    →      InputSimulator (CGEvent)
 
 ### Message protocol
 
-All messages are newline-terminated JSON sent over a plain TCP connection on port 8080.
-
-| Direction | Message | Description |
-|-----------|---------|-------------|
-| iOS → Mac | `{"type":"auth","pin":"1234"}` | Authentication (sent first) |
-| Mac → iOS | `{"type":"authResult","success":true}` | Auth response |
-| iOS → Mac | `{"type":"move","dx":5.0,"dy":-3.0}` | Relative cursor movement |
-| iOS → Mac | `{"type":"tap"}` | Left click |
-| iOS → Mac | `{"type":"rightClick"}` | Right click |
-| iOS → Mac | `{"type":"scroll","dx":0,"dy":10}` | Scroll wheel |
-| iOS → Mac | `{"type":"keypress","characters":"hello"}` | Text input |
-| iOS → Mac | `{"type":"keyCode","code":36}` | Special key (Return=36, Delete=51, Tab=48, Escape=53) |
-| iOS → Mac | `{"type":"switchSpace","direction":"left"}` | Switch Mission Control space |
-| iOS → Mac | `{"type":"sleep"}` | System sleep |
-| iOS → Mac | `{"type":"disconnect"}` | Close session |
+All messages are newline-terminated JSON sent over a plain TCP connection on port 8080. The full
+table is in the [mac-remote-server README](../mac-remote-server/README.md#how-it-works).
+The app reads `capabilities` from the auth reply and disables controls an older server doesn't
+support, and it sends `ping` every few seconds to notice a dead connection quickly.
 
 ---
 
@@ -203,43 +158,21 @@ All messages are newline-terminated JSON sent over a plain TCP connection on por
 ```
 mac-remote/
 ├── mac-remote.xcodeproj/          iOS Xcode project
-├── mac-remote/                    iOS app source
-│   ├── mac_remoteApp.swift        App entry point
-│   ├── ContentView.swift          Login / Trackpad router
-│   ├── ConnectionManager.swift    Networking + saved servers
-│   ├── LoginView.swift            Server discovery + PIN entry
-│   ├── TrackpadView.swift         Trackpad UI + gestures
-│   ├── KeyboardView.swift         Keyboard input capture
-│   └── Assets.xcassets/           App icon + colors
-└── MacServer/                     Mac server (Swift Package)
-    ├── Package.swift
-    ├── MacServer.entitlements
-    ├── Resources/
-    │   └── AppIcon.icns           Mac app icon
-    └── Sources/MacServer/
-        ├── main.swift             NSApplication entry
-        ├── AppDelegate.swift      Menu bar + PIN dialog
-        ├── ServerManager.swift    TCP listener + Bonjour
-        ├── InputSimulator.swift   CGEvent mouse/keyboard
-        └── SystemController.swift System sleep
+└── mac-remote/                    iOS app source
+    ├── mac_remoteApp.swift        App entry point
+    ├── ContentView.swift          Login / Trackpad router, app lifecycle
+    ├── ConnectionManager.swift    Networking, persistent session, auto-reconnect
+    ├── KeychainStore.swift        PIN storage
+    ├── LoginView.swift            Server discovery + PIN entry
+    ├── TrackpadView.swift         Trackpad, keyboard, shortcuts, media controls
+    └── Assets.xcassets/           App icon + colors
 ```
+
+The Mac server lives in the separate `mac-remote-server` repository.
 
 ---
 
 ## Building for distribution
-
-### Mac — create a signed .app bundle
-
-The Swift Package builds a CLI binary. To create a proper `.app` bundle with the icon:
-
-1. Open Xcode → **File → New → Project → macOS → App**.
-2. Add all files from `MacServer/Sources/MacServer/` to the new target.
-3. Drag `MacServer/Resources/AppIcon.icns` into `Assets.xcassets`.
-4. Set `LSUIElement = YES` in Info.plist (hides Dock icon).
-5. In **Signing & Capabilities**, disable sandbox and add Hardened Runtime.
-6. Archive and export with your Developer ID for direct distribution.
-
-### iOS — TestFlight / App Store
 
 Standard Xcode Archive → Distribute App flow. A paid Apple Developer account ($99/year) is required for TestFlight or App Store distribution.
 
@@ -263,7 +196,7 @@ If you need the VPN active for other reasons, split-tunnel mode (where local net
 
 - No data ever leaves your local network.
 - No analytics, tracking, or telemetry of any kind.
-- The PIN is stored in plain text in `UserDefaults` on both devices. For higher security, change your PIN regularly.
+- On the iPhone the PIN is stored in the Keychain. On the Mac it is stored in the app's preferences.
 
 ---
 

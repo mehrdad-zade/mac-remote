@@ -2,12 +2,12 @@ import SwiftUI
 
 @main
 struct mac_remoteApp: App {
-    @State private var connectionManager = ConnectionManager()
+    @StateObject private var connectionManager = ConnectionManager()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(connectionManager)
+                .environmentObject(connectionManager)
                 .preferredColorScheme(.dark)
                 .task { triggerLocalNetworkPermission() }
         }
